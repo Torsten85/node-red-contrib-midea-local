@@ -127,7 +127,7 @@ module.exports = function (RED: any): void {
 
       try {
         // Discover the device
-        const device = await Discover.discoverSingle(node.deviceIp);
+        const device = await Discover.discoverSingle(node.deviceIp, { autoConnect: false });
 
         if (!device) {
           throw new Error(`No device found at ${node.deviceIp}`);
