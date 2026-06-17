@@ -1,0 +1,78 @@
+<script type="text/javascript">
+  RED.nodes.registerType('midea-in', {
+    category: 'midea',
+    color: '#89CFF0',
+    defaults: {
+      name: { value: '' },
+      device: { value: '', type: 'midea-device', required: true },
+      topic: { value: '' }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: 'font-awesome/fa-thermometer-half',
+    paletteLabel: 'midea in',
+    label: function() {
+      return this.name || 'midea in';
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="midea-in">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+  <div class="form-row">
+    <label for="node-input-device"><i class="fa fa-server"></i> Device</label>
+    <input type="text" id="node-input-device">
+  </div>
+  <div class="form-row">
+    <label for="node-input-topic"><i class="fa fa-tasks"></i> Topic</label>
+    <input type="text" id="node-input-topic" placeholder="Optional msg.topic">
+  </div>
+</script>
+
+<script type="text/html" data-help-name="midea-in">
+  <p>Reads the current state of a Midea air conditioner and outputs it as a message.</p>
+
+  <h3>Input</h3>
+  <p>Send any message to trigger a state refresh. The input message's properties
+  (except <code>payload</code>) are preserved on the output.</p>
+  <p><strong>Tip:</strong> Use an <em>inject</em> node set to repeat at an interval
+  to poll the device state periodically.</p>
+
+  <h3>Output</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>Current device state.</dd>
+  </dl>
+
+  <table>
+    <tr><th>Property</th><th>Type</th><th>Description</th></tr>
+    <tr><td><code>powerState</code></td><td>boolean</td><td>Power on/off</td></tr>
+    <tr><td><code>targetTemperature</code></td><td>number</td><td>Set temperature in °C</td></tr>
+    <tr><td><code>indoorTemperature</code></td><td>number|null</td><td>Measured indoor temp</td></tr>
+    <tr><td><code>outdoorTemperature</code></td><td>number|null</td><td>Measured outdoor temp</td></tr>
+    <tr><td><code>operationalMode</code></td><td>string</td>
+        <td><code>"auto"</code>, <code>"cool"</code>, <code>"dry"</code>,
+            <code>"heat"</code>, <code>"fan_only"</code></td></tr>
+    <tr><td><code>fanSpeed</code></td><td>string</td>
+        <td><code>"auto"</code>, <code>"max"</code>, <code>"high"</code>,
+            <code>"medium"</code>, <code>"low"</code>, <code>"silent"</code></td></tr>
+    <tr><td><code>swingMode</code></td><td>string</td>
+        <td><code>"off"</code>, <code>"vertical"</code>,
+            <code>"horizontal"</code>, <code>"both"</code></td></tr>
+    <tr><td><code>turboMode</code></td><td>boolean</td><td>Turbo on/off</td></tr>
+    <tr><td><code>ecoMode</code></td><td>boolean</td><td>Eco on/off</td></tr>
+    <tr><td><code>sleepMode</code></td><td>boolean</td><td>Sleep on/off</td></tr>
+    <tr><td><code>indoorHumidity</code></td><td>number|null</td><td>Indoor humidity %</td></tr>
+    <tr><td><code>displayOn</code></td><td>boolean|null</td><td>LED display state</td></tr>
+    <tr><td><code>filterAlert</code></td><td>boolean|null</td><td>Filter needs cleaning</td></tr>
+    <tr><td><code>realTimePower</code></td><td>number|null</td><td>Current power draw (W)</td></tr>
+  </table>
+
+  <h3>Details</h3>
+  <p>The <code>_raw</code> object contains numeric enum values for
+  <code>operationalMode</code>, <code>fanSpeed</code>, and
+  <code>swingMode</code> for advanced integrations.</p>
+</script>

@@ -1,0 +1,87 @@
+<script type="text/javascript">
+  RED.nodes.registerType('midea-out', {
+    category: 'midea',
+    color: '#89CFF0',
+    defaults: {
+      name: { value: '' },
+      device: { value: '', type: 'midea-device', required: true },
+      passthrough: { value: false },
+      topic: { value: '' }
+    },
+    inputs: 1,
+    outputs: 1,
+    icon: 'font-awesome/fa-snowflake-o',
+    paletteLabel: 'midea out',
+    label: function() {
+      return this.name || 'midea out';
+    },
+    outputLabels: function() {
+      return this.passthrough ? 'device state' : '';
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="midea-out">
+  <div class="form-row">
+    <label for="node-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-input-name" placeholder="Name">
+  </div>
+
+  <div class="form-row">
+    <label for="node-input-device"><i class="fa fa-cog"></i> Device</label>
+    <input type="text" id="node-input-device">
+  </div>
+
+  <div class="form-row">
+    <label for="node-input-passthrough" style="width:auto;">
+      <input type="checkbox" id="node-input-passthrough" style="width:auto; margin:0 8px 0 0; vertical-align:middle;">
+      Pass-through — output updated device state after command
+    </label>
+  </div>
+
+  <div class="form-row">
+    <label for="node-input-topic"><i class="fa fa-tasks"></i> Topic</label>
+    <input type="text" id="node-input-topic" placeholder="Optional msg.topic">
+  </div>
+</script>
+
+<script type="text/html" data-help-name="midea-out">
+  <p>Sends commands to a Midea air conditioner. Set properties in <code>msg.payload</code> — only specified properties are changed.</p>
+  <h3>Input</h3>
+  <dl class="message-properties">
+    <dt>payload <span class="property-type">object</span></dt>
+    <dd>An object with one or more properties to set.</dd>
+  </dl>
+  <h3>Accepted Properties</h3>
+  <table>
+    <tr><th>Property</th><th>Type</th><th>Values</th></tr>
+    <tr><td><code>powerState</code></td><td>boolean</td><td><code>true</code> / <code>false</code></td></tr>
+    <tr><td><code>targetTemperature</code></td><td>number</td><td>16.0 – 30.0 (supports 0.5 steps)</td></tr>
+    <tr><td><code>operationalMode</code></td><td>string|number</td><td><code>"auto"</code>, <code>"cool"</code>, <code>"dry"</code>, <code>"heat"</code>, <code>"fan_only"</code><br>or numeric: 1, 2, 3, 4, 5</td></tr>
+    <tr><td><code>fanSpeed</code></td><td>string|number</td><td><code>"auto"</code>, <code>"max"</code>, <code>"high"</code>, <code>"medium"</code>, <code>"low"</code>, <code>"silent"</code><br>or numeric: 102, 100, 80, 60, 40, 20</td></tr>
+    <tr><td><code>swingMode</code></td><td>string|number</td><td><code>"off"</code>, <code>"vertical"</code>, <code>"horizontal"</code>, <code>"both"</code><br>or numeric: 0x0, 0xC, 0x3, 0xF</td></tr>
+    <tr><td><code>turboMode</code></td><td>boolean</td><td>Enable turbo mode</td></tr>
+    <tr><td><code>ecoMode</code></td><td>boolean</td><td>Enable eco mode</td></tr>
+    <tr><td><code>sleepMode</code></td><td>boolean</td><td>Enable sleep mode</td></tr>
+    <tr><td><code>fahrenheit</code></td><td>boolean</td><td>Display in Fahrenheit</td></tr>
+    <tr><td><code>displayOn</code></td><td>boolean</td><td>Toggle LED display</td></tr>
+    <tr><td><code>beep</code></td><td>boolean</td><td>Beep on command</td></tr>
+  </table>
+  <h3>Output</h3>
+  <p>When <strong>Pass-through</strong> is enabled, the node outputs the updated device state (same format as <code>midea in</code>) after applying the command.</p>
+  <h3>Examples</h3>
+  <p>Turn on and set to cool at 22°C:</p>
+  <pre>msg.payload = {
+  powerState: true,
+  operationalMode: "cool",
+  targetTemperature: 22
+};</pre>
+  <p>Just change the fan speed:</p>
+  <pre>msg.payload = { fanSpeed: "low" };</pre>
+  <h3>Tips</h3>
+  <ul>
+    <li>Only properties present in <code>msg.payload</code> are changed. Omitted properties keep their current value.</li>
+    <li>String values are case-insensitive.</li>
+    <li>Numeric enum values are also accepted for advanced use.</li>
+  </ul>
+</script>

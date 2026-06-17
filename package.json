@@ -1,0 +1,50 @@
+{
+  "name": "node-red-contrib-midea-local",
+  "version": "0.1.0",
+  "description": "Node-RED nodes for local control of Midea smart air conditioners",
+  "license": "MIT",
+  "author": "Torsten Blindert",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Torsten85/node-red-contrib-midea-local.git"
+  },
+  "homepage": "https://github.com/Torsten85/node-red-contrib-midea-local",
+  "bugs": "https://github.com/Torsten85/node-red-contrib-midea-local/issues",
+  "keywords": [
+    "node-red",
+    "midea",
+    "air-conditioner",
+    "smart-home",
+    "hvac",
+    "iot",
+    "local-control"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist"
+  ],
+  "node-red": {
+    "version": ">=4.0.0",
+    "nodes": {
+      "midea-device": "dist/nodes/midea-device.js",
+      "midea-in": "dist/nodes/midea-in.js",
+      "midea-out": "dist/nodes/midea-out.js"
+    }
+  },
+  "scripts": {
+    "build": "rm -rf dist && bun build src/nodes/midea-device.ts src/nodes/midea-in.ts src/nodes/midea-out.ts --outdir dist/nodes --target node --format cjs --external 'node:*' --external midea-local && cp src/nodes/*.html dist/nodes/",
+    "dev": "bun run scripts/dev.ts",
+    "test": "bun test",
+    "prepublishOnly": "bun run build"
+  },
+  "dependencies": {
+    "midea-local": "^0.1.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^22",
+    "typescript": "^5"
+  }
+}

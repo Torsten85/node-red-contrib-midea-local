@@ -1,0 +1,350 @@
+<script type="text/javascript">
+  RED.nodes.registerType('midea-device', {
+    category: 'config',
+    defaults: {
+      name: { value: '' },
+      ip: { value: '', required: true }
+    },
+    credentials: {
+      token: { type: 'text' },
+      key: { type: 'password' }
+    },
+    label: function() {
+      return this.name || this.ip || 'midea device';
+    }
+  });
+</script>
+
+<script type="text/html" data-template-name="midea-device">
+  <style>
+    .midea-scan-results {
+      margin-top: 12px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      background: #fafafa;
+      overflow: hidden;
+    }
+    .midea-scan-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      background: #f0f0f0;
+      border-bottom: 1px solid #ccc;
+      cursor: pointer;
+      user-select: none;
+    }
+    .midea-scan-header:hover { background: #e8e8e8; }
+    .midea-scan-header .fa { transition: transform 0.2s; }
+    .midea-scan-header.collapsed .fa-chevron-down { transform: rotate(-90deg); }
+    .midea-scan-body { padding: 0; }
+    .midea-scan-body.hidden { display: none; }
+
+    .midea-device-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    .midea-device-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 10px 12px;
+      border-bottom: 1px solid #eee;
+    }
+    .midea-device-item:last-child { border-bottom: none; }
+    .midea-device-item:hover { background: #f5f5f5; }
+    .midea-device-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .midea-device-primary {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+      font-size: 13px;
+    }
+    .midea-device-secondary {
+      font-size: 11px;
+      color: #888;
+      margin-top: 2px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .midea-protocol-badge {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .midea-protocol-v2 { background: #d4edda; color: #155724; }
+    .midea-protocol-v3 { background: #cce5ff; color: #004085; }
+    .midea-device-action { flex-shrink: 0; }
+
+    .midea-auth-panel {
+      padding: 10px 12px;
+      background: #fff8e1;
+      border-top: 1px solid #ffe082;
+    }
+    .midea-auth-panel label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 2px;
+      margin-top: 6px;
+    }
+    .midea-auth-panel label:first-child { margin-top: 0; }
+    .midea-auth-panel input {
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .midea-auth-note {
+      font-size: 11px;
+      color: #666;
+      margin: 6px 0 8px;
+      font-style: italic;
+    }
+    .midea-auth-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+    }
+    .midea-spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid #ccc;
+      border-top-color: #333;
+      border-radius: 50%;
+      animation: midea-spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    @keyframes midea-spin { to { transform: rotate(360deg); } }
+    .midea-error {
+      color: #a94442;
+      background: #f2dede;
+      border: 1px solid #ebccd1;
+      border-radius: 4px;
+      padding: 8px 12px;
+      margin-top: 8px;
+      font-size: 13px;
+    }
+    .midea-scan-empty {
+      padding: 12px;
+      text-align: center;
+      color: #888;
+      font-style: italic;
+    }
+  </style>
+
+  <div class="form-row">
+    <label for="node-config-input-name"><i class="fa fa-tag"></i> Name</label>
+    <input type="text" id="node-config-input-name" placeholder="Optional name">
+  </div>
+
+  <div class="form-row">
+    <label for="node-config-input-ip"><i class="fa fa-globe"></i> IP</label>
+    <div style="display: inline-flex; width: 70%; gap: 6px;">
+      <input type="text" id="node-config-input-ip" placeholder="192.168.1.x" style="flex: 1;">
+      <button type="button" id="midea-scan-btn" class="red-ui-button" style="white-space: nowrap;">
+        <i class="fa fa-search"></i> Scan Network
+      </button>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <label for="node-config-input-token"><i class="fa fa-key"></i> Token</label>
+    <input type="text" id="node-config-input-token" placeholder="Device token (hex)">
+  </div>
+
+  <div class="form-row">
+    <label for="node-config-input-key"><i class="fa fa-lock"></i> Key</label>
+    <input type="password" id="node-config-input-key" placeholder="Device key (hex)">
+  </div>
+
+  <div id="midea-scan-status"></div>
+  <div id="midea-scan-results-container"></div>
+
+  <script>
+    (function() {
+      var scanBtn = $('#midea-scan-btn');
+      var statusDiv = $('#midea-scan-status');
+      var resultsContainer = $('#midea-scan-results-container');
+
+      scanBtn.on('click', function() {
+        scanBtn.prop('disabled', true);
+        statusDiv.html('<span class="midea-spinner"></span> Scanning network for Midea devices…');
+        resultsContainer.empty();
+
+        $.ajax({
+          url: 'midea-device/scan',
+          dataType: 'json'
+        }).done(function(devices) {
+          statusDiv.empty();
+          if (!devices || !Array.isArray(devices) || devices.length === 0) {
+            resultsContainer.html('<div class="midea-scan-empty">No devices found. Make sure your Midea device is powered on and connected to the same network.</div>');
+            return;
+          }
+          renderDevices(devices);
+        }).fail(function(xhr) {
+          statusDiv.empty();
+          var msg = 'Scan failed.';
+          try { msg = JSON.parse(xhr.responseText).error || msg; } catch(e) {}
+          resultsContainer.html('<div class="midea-error"><i class="fa fa-exclamation-triangle"></i> ' + msg + '</div>');
+        }).always(function() {
+          scanBtn.prop('disabled', false);
+        });
+      });
+
+      function renderDevices(devices) {
+        var html = '<div class="midea-scan-results">';
+        html += '<div class="midea-scan-header" id="midea-scan-toggle">';
+        html += '<span><i class="fa fa-list"></i> Found ' + devices.length + ' device(s)</span>';
+        html += '<i class="fa fa-chevron-down"></i>';
+        html += '</div>';
+        html += '<div class="midea-scan-body" id="midea-scan-body">';
+        html += '<ul class="midea-device-list">';
+
+        devices.forEach(function(dev, idx) {
+          var ver = dev.version || 2;
+          var badgeClass = ver >= 3 ? 'midea-protocol-v3' : 'midea-protocol-v2';
+          var sn = dev.sn || '—';
+
+          html += '<li>';
+          html += '<div class="midea-device-item">';
+
+          // Left: device info
+          html += '<div class="midea-device-info">';
+          html += '<div class="midea-device-primary">';
+          html += '<span>' + escapeHtml(dev.ip) + '</span>';
+          html += '<span class="midea-protocol-badge ' + badgeClass + '">V' + ver + '</span>';
+          html += '</div>';
+          html += '<div class="midea-device-secondary">ID: ' + escapeHtml(String(dev.id || '—')) + ' · SN: ' + escapeHtml(sn) + '</div>';
+          html += '</div>';
+
+          // Right: action button
+          html += '<div class="midea-device-action">';
+          if (ver >= 3) {
+            html += '<button type="button" class="red-ui-button red-ui-button-small midea-auth-btn" data-idx="' + idx + '" data-ip="' + escapeHtml(dev.ip) + '">Authorize</button>';
+          } else {
+            html += '<button type="button" class="red-ui-button red-ui-button-small midea-select-btn" data-ip="' + escapeHtml(dev.ip) + '">Select</button>';
+          }
+          html += '</div>';
+
+          html += '</div>'; // .midea-device-item
+
+          // Auth form row (hidden by default)
+          html += '<div class="midea-auth-row" id="midea-auth-row-' + idx + '" style="display:none;"></div>';
+          html += '</li>';
+        });
+
+        html += '</ul></div></div>';
+        resultsContainer.html(html);
+
+        // Toggle collapse
+        $('#midea-scan-toggle').on('click', function() {
+          $(this).toggleClass('collapsed');
+          $('#midea-scan-body').toggleClass('hidden');
+        });
+
+        // Select buttons (V2)
+        resultsContainer.on('click', '.midea-select-btn', function() {
+          $('#node-config-input-ip').val($(this).data('ip'));
+        });
+
+        // Authorize buttons (V3)
+        resultsContainer.on('click', '.midea-auth-btn', function() {
+          var idx = $(this).data('idx');
+          var ip = $(this).data('ip');
+          var row = $('#midea-auth-row-' + idx);
+
+          // Hide any other open auth forms
+          $('.midea-auth-row').hide().empty();
+
+          var formHtml = '<div class="midea-auth-panel">';
+          formHtml += '<label>Midea Account (email)</label>';
+          formHtml += '<input type="text" class="midea-auth-account" placeholder="you@example.com">';
+          formHtml += '<label>Password</label>';
+          formHtml += '<input type="password" class="midea-auth-password" placeholder="Password">';
+          formHtml += '<div class="midea-auth-note">Your credentials are used once to fetch the device token and are NOT stored.</div>';
+          formHtml += '<div class="midea-auth-actions">';
+          formHtml += '<button type="button" class="red-ui-button red-ui-button-small midea-auth-submit" data-ip="' + ip + '">Get Token &amp; Key</button>';
+          formHtml += '<button type="button" class="red-ui-button red-ui-button-small midea-auth-cancel">Cancel</button>';
+          formHtml += '</div>';
+          formHtml += '<div class="midea-auth-status"></div>';
+          formHtml += '</div>';
+
+          row.html(formHtml);
+          row.show();
+        });
+
+        // Cancel auth
+        resultsContainer.on('click', '.midea-auth-cancel', function() {
+          $(this).closest('.midea-auth-row').hide().empty();
+        });
+
+        // Submit auth
+        resultsContainer.on('click', '.midea-auth-submit', function() {
+          var btn = $(this);
+          var panel = btn.closest('.midea-auth-panel');
+          var statusEl = panel.find('.midea-auth-status');
+          var ip = btn.data('ip');
+          var account = panel.find('.midea-auth-account').val().trim();
+          var password = panel.find('.midea-auth-password').val();
+
+          if (!account || !password) {
+            statusEl.html('<div class="midea-error"><i class="fa fa-exclamation-triangle"></i> Please enter both account and password.</div>');
+            return;
+          }
+
+          btn.prop('disabled', true);
+          statusEl.html('<span class="midea-spinner"></span> Authorizing…');
+
+          $.ajax({
+            url: 'midea-device/authorize',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ ip: ip, account: account, password: password })
+          }).done(function(data) {
+            $('#node-config-input-ip').val(ip);
+            $('#node-config-input-token').val(data.token);
+            $('#node-config-input-key').val(data.key);
+            statusEl.html('<div style="color:#155724;padding:4px 0;"><i class="fa fa-check"></i> Token and key retrieved successfully!</div>');
+            setTimeout(function() {
+              panel.closest('.midea-auth-row').hide().empty();
+            }, 1500);
+          }).fail(function(xhr) {
+            var msg = 'Authorization failed.';
+            try { msg = JSON.parse(xhr.responseText).error || msg; } catch(e) {}
+            statusEl.html('<div class="midea-error"><i class="fa fa-exclamation-triangle"></i> ' + msg + '</div>');
+          }).always(function() {
+            btn.prop('disabled', false);
+          });
+        });
+      }
+
+      function escapeHtml(str) {
+        var div = document.createElement('div');
+        div.appendChild(document.createTextNode(str));
+        return div.innerHTML;
+      }
+    })();
+  </script>
+</script>
+
+<script type="text/html" data-help-name="midea-device">
+  <p>Configuration node for a Midea air conditioner on your local network.</p>
+  <h3>Setup</h3>
+  <p>Use the <strong>Scan Network</strong> button to discover Midea devices on your network. For V3 devices (most modern units), click <strong>Authorize</strong> to perform a one-time cloud authentication that fetches the device's token and key.</p>
+  <p>Your Midea account credentials are used only during authorization and are <strong>never stored</strong>. Only the resulting token and key are saved.</p>
+  <h3>Manual Setup</h3>
+  <p>If you already have a token and key (e.g., from another integration), enter the device IP, token, and key directly.</p>
+  <h3>Connection</h3>
+  <p>Connects to the device via TCP on port 6444 using Midea's proprietary LAN protocol. The connection is automatically re-established if lost, using exponential backoff (1s, 2s, 4s, ... up to 60s max).</p>
+</script>
