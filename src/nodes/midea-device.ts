@@ -102,6 +102,12 @@ module.exports = function (RED: any): void {
     node.connected = false;
     node.events = new EventEmitter();
 
+    // A bare EventEmitter re-throws emit("error") when no listener is
+    // attached — an uncaught exception that crashes the whole Node-RED
+    // process (issue #1). Attach a no-op default so a failed connection
+    // (e.g. unreachable device) only updates status and retries.
+    node.events.on("error", () => {});
+
     // Child node tracking
     const users: any[] = [];
 
@@ -219,7 +225,10 @@ module.exports = function (RED: any): void {
     node.on("close", (done: () => void) => {
       closing = true;
       disconnect();
-      node.events.removeAllListeners();
+      // Note: do NOT removeAllListeners() on node.events here. An
+      // in-flight connect() can still fail after close, and stripping
+      // the protective "error" listener would re-introduce the crash
+      // from issue #1. The emitter is discarded with the node anyway.
       done();
     });
   }

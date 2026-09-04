@@ -36,7 +36,7 @@
   "scripts": {
     "build": "rm -rf dist && bun build src/nodes/midea-device.ts src/nodes/midea-in.ts src/nodes/midea-out.ts --outdir dist/nodes --target node --format cjs --external 'node:*' --external midea-local && cp src/nodes/*.html dist/nodes/",
     "dev": "bun run scripts/dev.ts",
-    "test": "bun test",
+    "test": "bun run build && bun test",
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
