@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-midea-local",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Node-RED nodes for local control of Midea smart air conditioners",
   "license": "MIT",
   "author": "Torsten Blindert",
