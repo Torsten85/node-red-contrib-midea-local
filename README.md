@@ -19,7 +19,7 @@ Then restart Node-RED. The nodes will appear in the **midea** category in the pa
 
 Configuration node that manages the connection to a single Midea AC device.
 
-- **Scan Network** — discovers Midea devices on your local network via UDP broadcast
+- **Scan Network** — discovers Midea devices on your local network via UDP broadcast. If your network is segmented into VLANs or subnets (broadcast cannot cross those boundaries), enter the device IP first and press **Scan Network** to probe that device directly
 - **Authorize** — one-time cloud authentication for V3 devices to fetch the device token and key. Your Midea account credentials are used only during this step and are **never stored**
 - **Auto-reconnect** — connection is automatically re-established with exponential backoff (1s → 60s)
 

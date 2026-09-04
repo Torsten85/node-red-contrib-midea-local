@@ -152,7 +152,7 @@
     <label for="node-config-input-ip"><i class="fa fa-globe"></i> IP</label>
     <div style="display: inline-flex; width: 70%; gap: 6px;">
       <input type="text" id="node-config-input-ip" placeholder="192.168.1.x" style="flex: 1;">
-      <button type="button" id="midea-scan-btn" class="red-ui-button" style="white-space: nowrap;">
+      <button type="button" id="midea-scan-btn" class="red-ui-button" style="white-space: nowrap;" title="Leave the IP empty to broadcast-scan the local network. If an IP is entered, that device is probed directly (works across VLANs).">
         <i class="fa fa-search"></i> Scan Network
       </button>
     </div>
@@ -178,17 +178,27 @@
       var resultsContainer = $('#midea-scan-results-container');
 
       scanBtn.on('click', function() {
+        // If an IP is entered, probe that device directly (works across
+        // VLANs/subnets where broadcast is dropped); otherwise broadcast.
+        var targetIp = String($('#node-config-input-ip').val() || '').trim();
+        var directed = targetIp.length > 0;
+
         scanBtn.prop('disabled', true);
-        statusDiv.html('<span class="midea-spinner"></span> Scanning network for Midea devices…');
+        statusDiv.html('<span class="midea-spinner"></span> ' + (directed
+          ? 'Probing device at ' + escapeHtml(targetIp) + '…'
+          : 'Scanning network for Midea devices…'));
         resultsContainer.empty();
 
         $.ajax({
-          url: 'midea-device/scan',
+          url: 'midea-device/scan' + (directed ? '?ip=' + encodeURIComponent(targetIp) : ''),
           dataType: 'json'
         }).done(function(devices) {
           statusDiv.empty();
           if (!devices || !Array.isArray(devices) || devices.length === 0) {
-            resultsContainer.html('<div class="midea-scan-empty">No devices found. Make sure your Midea device is powered on and connected to the same network.</div>');
+            var hint = directed
+              ? 'The device could not be reached. Make sure it is powered on and reachable from this Node-RED instance.'
+              : 'No devices found. Make sure your Midea device is powered on and connected to the same network. If your network is segmented into VLANs or subnets, broadcast discovery cannot cross those boundaries — enter the device IP above and scan again.';
+            resultsContainer.html('<div class="midea-scan-empty">' + hint + '</div>');
             return;
           }
           renderDevices(devices);
@@ -341,7 +351,7 @@
 <script type="text/html" data-help-name="midea-device">
   <p>Configuration node for a Midea air conditioner on your local network.</p>
   <h3>Setup</h3>
-  <p>Use the <strong>Scan Network</strong> button to discover Midea devices on your network. For V3 devices (most modern units), click <strong>Authorize</strong> to perform a one-time cloud authentication that fetches the device's token and key.</p>
+  <p>Use the <strong>Scan Network</strong> button to discover Midea devices on your network. If the IP field is empty, a broadcast scan is performed; if you enter an IP address first, that device is probed directly — useful when your network is segmented into VLANs or subnets, where broadcast discovery cannot cross those boundaries. For V3 devices (most modern units), click <strong>Authorize</strong> to perform a one-time cloud authentication that fetches the device's token and key.</p>
   <p>Your Midea account credentials are used only during authorization and are <strong>never stored</strong>. Only the resulting token and key are saved.</p>
   <h3>Manual Setup</h3>
   <p>If you already have a token and key (e.g., from another integration), enter the device IP, token, and key directly.</p>

@@ -20,7 +20,7 @@
  * @module
  */
 
-import { describe, it, expect, mock, beforeAll } from "bun:test";
+import { describe, it, expect, mock, beforeAll, beforeEach } from "bun:test";
 import { EventEmitter } from "node:events";
 
 /**
@@ -120,6 +120,7 @@ async function callHttp(
   method: "GET" | "POST",
   path: string,
   body?: any,
+  query?: Record<string, string>,
 ): Promise<{ statusCode: number | undefined; body: any }> {
   const handler = httpAdmin[`${method} ${path}`];
   if (!handler) throw new Error(`${method} ${path} is not registered`);
@@ -135,7 +136,7 @@ async function callHttp(
       return this;
     },
   };
-  await handler({ body }, res);
+  await handler({ body, query }, res);
   return { statusCode: res.statusCode, body: res.body };
 }
 
@@ -349,5 +350,87 @@ describe("midea-device (issue #3: CloudError crash on token/key fetch)", () => {
     expect(uncaught).toBeNull();
     expect(node.connected).toBe(false);
     expect(node.device).toBe(null);
+  });
+});
+
+describe("midea-device (issue #2: discovery with defined IP address)", () => {
+  /** Track which discovery method was called with which args. */
+  let discoverCalls: any[][];
+  let discoverSingleCalls: any[][];
+
+  const broadcastDevices = [
+    { ip: "10.0.0.40", id: 1, name: "ac-a", sn: "SN-A", type: 0xac, version: 2 },
+    { ip: "10.0.0.41", id: 2, name: "ac-b", sn: "SN-B", type: 0xac, version: 3 },
+  ];
+
+  beforeEach(() => {
+    discoverCalls = [];
+    discoverSingleCalls = [];
+    behavior.discover = async (...args: any[]) => {
+      discoverCalls.push(args);
+      return broadcastDevices.map((d) => ({ ...d }));
+    };
+    behavior.discoverSingle = async (...args: any[]) => {
+      discoverSingleCalls.push(args);
+      return { ip: "192.168.50.22", id: 99, name: "ac-direct", sn: "SN-D", type: 0xac, version: 3 };
+    };
+  });
+
+  it("scan without ip performs a broadcast discovery", async () => {
+    const { RED, httpAdmin } = createFakeRED();
+    registerMideaDevice(RED);
+    const res = await callHttp(httpAdmin, "GET", "/midea-device/scan");
+
+    expect(discoverCalls).toHaveLength(1);
+    expect(discoverSingleCalls).toHaveLength(0);
+    expect(res.statusCode).toBeUndefined(); // 200
+    expect(res.body).toHaveLength(2);
+    expect(res.body[0].ip).toBe("10.0.0.40");
+  });
+
+  it("scan with ip performs a directed discovery with autoConnect disabled", async () => {
+    const { RED, httpAdmin } = createFakeRED();
+    registerMideaDevice(RED);
+    const res = await callHttp(httpAdmin, "GET", "/midea-device/scan", undefined, { ip: "192.168.50.22" });
+
+    expect(discoverSingleCalls).toEqual([["192.168.50.22", { autoConnect: false }]]);
+    expect(discoverCalls).toHaveLength(0); // no broadcast
+    expect(res.statusCode).toBeUndefined(); // 200
+    expect(res.body).toEqual([
+      { ip: "192.168.50.22", id: 99, name: "ac-direct", sn: "SN-D", type: 0xac, version: 3 },
+    ]);
+  });
+
+  it("scan with ip returns an empty list when the device is unreachable", async () => {
+    behavior.discoverSingle = async () => null;
+
+    const { RED, httpAdmin } = createFakeRED();
+    registerMideaDevice(RED);
+    const res = await callHttp(httpAdmin, "GET", "/midea-device/scan", undefined, { ip: "10.1.2.3" });
+
+    expect(res.statusCode).toBeUndefined(); // 200, not an error
+    expect(res.body).toEqual([]);
+  });
+
+  it("scan with an empty ip falls back to broadcast", async () => {
+    const { RED, httpAdmin } = createFakeRED();
+    registerMideaDevice(RED);
+    await callHttp(httpAdmin, "GET", "/midea-device/scan", undefined, { ip: "  " });
+
+    expect(discoverCalls).toHaveLength(1);
+    expect(discoverSingleCalls).toHaveLength(0);
+  });
+
+  it("scan reports discovery errors as 500", async () => {
+    behavior.discoverSingle = async () => {
+      throw Object.assign(new Error("Socket error: abc"), { name: "DiscoverError" });
+    };
+
+    const { RED, httpAdmin } = createFakeRED();
+    registerMideaDevice(RED);
+    const res = await callHttp(httpAdmin, "GET", "/midea-device/scan", undefined, { ip: "bad-host" });
+
+    expect(res.statusCode).toBe(500);
+    expect(res.body.error).toContain("Socket error");
   });
 });

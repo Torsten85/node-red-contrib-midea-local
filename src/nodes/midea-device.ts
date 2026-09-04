@@ -18,14 +18,30 @@ module.exports = function (RED: any): void {
   // ── Admin HTTP endpoints ────────────────────────────────────────────────
 
   /**
-   * GET /midea-device/scan
+   * GET /midea-device/scan[?ip=<address>]
    *
-   * Runs UDP broadcast discovery and returns a list of found devices.
-   * Credentials are NOT required — this is a network scan only.
+   * Without `ip`: UDP broadcast discovery on the local network.
+   * With `ip`: directed unicast discovery of a single device — works
+   * across VLAN/subnet boundaries where broadcast packets are
+   * dropped (issue #2). Credentials are NOT required.
    */
-  RED.httpAdmin.get("/midea-device/scan", async (_req: any, res: any) => {
+  RED.httpAdmin.get("/midea-device/scan", async (req: any, res: any) => {
     try {
-      const devices = await Discover.discover({ autoConnect: false });
+      const raw = req.query?.ip;
+
+      if (raw !== undefined && typeof raw !== "string") {
+        return res.status(400).json({ error: "Invalid IP address." });
+      }
+
+      const ip = typeof raw === "string" ? raw.trim() : "";
+
+      // Directed probe of one device vs. broadcast sweep. autoConnect
+      // must stay off — see the authorize endpoint for details (#3).
+      const found = ip
+        ? await Discover.discoverSingle(ip, { autoConnect: false })
+        : await Discover.discover({ autoConnect: false });
+
+      const devices = Array.isArray(found) ? found : found ? [found] : [];
 
       const results = devices.map((d: any) => ({
         ip: d.ip,
