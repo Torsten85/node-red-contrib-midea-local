@@ -59,7 +59,12 @@ module.exports = function (RED: any): void {
     }
 
     try {
-      const device = await Discover.discoverSingle(ip);
+      // autoConnect: false is essential (issue #3): the library's implicit
+      // connect would fetch cloud tokens with no credentials attached and
+      // any CloudError surfaces as an unhandled promise rejection inside
+      // the library, crashing the whole Node-RED process. We connect
+      // explicitly below, inside this try/catch, with the credentials.
+      const device = await Discover.discoverSingle(ip, { autoConnect: false });
 
       if (!device) {
         return res
@@ -68,7 +73,16 @@ module.exports = function (RED: any): void {
       }
 
       // Fetch token/key from cloud — credentials are used here and discarded
-      await Discover.connect(device, { account, password });
+      const connected = await Discover.connect(device, { account, password });
+
+      // connect() resolves false on failed device handshake, and older
+      // library flows may resolve without populating token/key (e.g. v2
+      // devices). Either way we must not return them as a success.
+      if (!connected || !device.token || !device.key) {
+        return res.status(502).json({
+          error: `Device at ${ip} did not return token/key. Check account/password and Midea cloud availability.`,
+        });
+      }
 
       res.json({
         token: device.token,
@@ -78,6 +92,11 @@ module.exports = function (RED: any): void {
         sn: device.sn,
       });
     } catch (err: any) {
+      // CloudError means the Midea cloud refused/failed — bad gateway,
+      // everything else is our own fault (500).
+      if (err instanceof Error && err.name === "CloudError") {
+        return res.status(502).json({ error: `Midea cloud error: ${err.message}` });
+      }
       res.status(500).json({ error: err.message ?? "Authorization failed" });
     }
   });
