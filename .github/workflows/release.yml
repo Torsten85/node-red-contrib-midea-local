@@ -7,8 +7,13 @@ on:
 permissions:
   contents: write
 
+env:
+  # Used to detect whether npm publishing is configured at all;
+  # the job-level env makes the secret testable in step conditions.
+  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
 jobs:
-  publish:
+  release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,12 +43,21 @@ jobs:
       - name: Build & test
         run: bun run test
 
+      # Publishing is best-effort: the release may also be published to
+      # npm manually, in which case this step fails harmlessly ("cannot
+      # publish over previously published version") or is skipped when
+      # no NPM_TOKEN secret is configured. The GitHub release below is
+      # created either way, so its links stay valid.
       - name: Publish to npm
+        id: publish
+        continue-on-error: true
+        if: env.NPM_TOKEN != ''
         run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Create GitHub release
+        if: success() || steps.publish.outcome == 'failure'
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
