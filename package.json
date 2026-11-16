@@ -1,6 +1,6 @@
 {
   "name": "node-red-contrib-midea-local",
-  "version": "0.1.2",
+  "version": "0.2.5",
   "description": "Node-RED nodes for local control of Midea smart air conditioners",
   "license": "MIT",
   "author": "Torsten Blindert",
@@ -35,12 +35,13 @@
   },
   "scripts": {
     "build": "rm -rf dist && bun build src/nodes/midea-device.ts src/nodes/midea-in.ts src/nodes/midea-out.ts --outdir dist/nodes --target node --format cjs --external 'node:*' --external midea-local && cp src/nodes/*.html dist/nodes/",
+    "pack:local": "bun run build && node scripts/package-local.mjs",
     "dev": "bun run scripts/dev.ts",
     "test": "bun run build && bun test",
     "prepublishOnly": "bun run build"
   },
   "dependencies": {
-    "midea-local": "^0.1.1"
+    "midea-local": "^0.1.2"
   },
   "devDependencies": {
     "@types/bun": "latest",

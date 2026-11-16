@@ -5,10 +5,12 @@
     defaults: {
       name: { value: '' },
       device: { value: '', type: 'midea-device', required: true },
+      includeCapabilities: { value: true },
       topic: { value: '' }
     },
     inputs: 1,
-    outputs: 1,
+    outputs: 2,
+    outputLabels: ['device state', 'capabilities'],
     icon: 'font-awesome/fa-thermometer-half',
     paletteLabel: 'midea in',
     label: function() {
@@ -27,6 +29,12 @@
     <input type="text" id="node-input-device">
   </div>
   <div class="form-row">
+    <label style="width:auto;" for="node-input-includeCapabilities">
+      <input type="checkbox" id="node-input-includeCapabilities" style="width:auto; margin-right:8px;">
+      Include capabilities in state output
+    </label>
+  </div>
+  <div class="form-row">
     <label for="node-input-topic"><i class="fa fa-tasks"></i> Topic</label>
     <input type="text" id="node-input-topic" placeholder="Optional msg.topic">
   </div>
@@ -41,7 +49,9 @@
   <p><strong>Tip:</strong> Use an <em>inject</em> node set to repeat at an interval
   to poll the device state periodically.</p>
 
-  <h3>Output</h3>
+  <h3>Outputs</h3>
+  <p>Output 1 carries device state. Output 2 carries <code>{ip, id, capabilities, _raw: {additional_capabilities}}</code> after connection/reconnection and whenever capabilities change on a subsequent read or command. No extra device queries are made. The configured topic applies to both outputs. Output 2 works independently of pass-through.</p>
+  <p>Disable <strong>Include capabilities in state output</strong> to omit <code>capabilities</code> and <code>_raw.additional_capabilities</code> from output 1. Existing flows retain them by default.</p>
   <dl class="message-properties">
     <dt>payload <span class="property-type">object</span></dt>
     <dd>Current device state.</dd>
@@ -58,7 +68,8 @@
             <code>"heat"</code>, <code>"fan_only"</code></td></tr>
     <tr><td><code>fanSpeed</code></td><td>string</td>
         <td><code>"auto"</code>, <code>"max"</code>, <code>"high"</code>,
-            <code>"medium"</code>, <code>"low"</code>, <code>"silent"</code></td></tr>
+            <code>"medium"</code>, <code>"low"</code>, <code>"silent"</code>, <code>"custom"</code></td></tr>
+    <tr><td><code>fanSpeedValue</code></td><td>number|null</td><td>Numeric fan setting (1–100); null in Auto or when unknown. Not measured RPM. The raw Auto code remains 102 in <code>_raw.fanSpeed</code>.</td></tr>
     <tr><td><code>swingMode</code></td><td>string</td>
         <td><code>"off"</code>, <code>"vertical"</code>,
             <code>"horizontal"</code>, <code>"both"</code></td></tr>
@@ -71,8 +82,12 @@
     <tr><td><code>realTimePower</code></td><td>number|null</td><td>Current power draw (W)</td></tr>
   </table>
 
+  <h3>Energy</h3>
+  <p><code>totalEnergyConsumption</code>, <code>currentEnergyConsumption</code>, and <code>realTimePower</code> use the BCD or Binary format selected in the device configuration. Missing readings remain null. Energy polling follows the device’s reported capabilities.</p>
   <h3>Details</h3>
   <p>The <code>_raw</code> object contains numeric enum values for
   <code>operationalMode</code>, <code>fanSpeed</code>, and
   <code>swingMode</code> for advanced integrations.</p>
+  <p>Advanced state includes <code>targetHumidity</code>, <code>freezeProtection</code>, <code>followMe</code>, <code>purifier</code>, <code>ieco</code>, <code>flashCool</code>, <code>outSilent</code>, <code>breezeAway</code>, <code>breezeMild</code>, <code>breezeless</code>, <code>horizontalSwingAngle</code>, <code>verticalSwingAngle</code>, <code>cascadeMode</code>, <code>rateSelect</code>, and <code>auxMode</code>. Angles/modes/rates use numeric library constants. <code>operationalMode</code> also supports <code>smart_dry</code>.</p>
+  <p>Additional fields: <code>fahrenheit</code>, <code>beep</code>, <code>selfCleanActive</code>, <code>defrostActive</code>, <code>errorCode</code>, <code>outdoorFanSpeed</code>, and <code>capabilities</code>. <code>capabilities.additional_capabilities</code> contains named boolean flags (for example <code>eco</code> and <code>self_clean</code>); the numeric mask is retained in <code>_raw.additional_capabilities</code>. Capabilities are queried on connection; sensor availability depends on the model.</p>
 </script>

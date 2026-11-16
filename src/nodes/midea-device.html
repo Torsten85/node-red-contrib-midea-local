@@ -3,7 +3,19 @@
     category: 'config',
     defaults: {
       name: { value: '' },
-      ip: { value: '', required: true }
+      ip: { value: '', required: true },
+      energyDataFormat: { value: 'bcd' },
+      capabilityOverrides: {
+        value: '',
+        validate: function(value) {
+          if (!value || !value.trim()) return true;
+          try {
+            var parsed = JSON.parse(value);
+            return parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed) &&
+              Object.values(parsed).every(function(flag) { return typeof flag === 'boolean'; });
+          } catch (e) { return false; }
+        }
+      }
     },
     credentials: {
       token: { type: 'text' },
@@ -167,6 +179,21 @@
     <label for="node-config-input-key"><i class="fa fa-lock"></i> Key</label>
     <input type="password" id="node-config-input-key" placeholder="Device key (hex)">
   </div>
+
+  <div class="form-row">
+    <label for="node-config-input-energyDataFormat">Energy format</label>
+    <select id="node-config-input-energyDataFormat">
+      <option value="bcd">BCD (default)</option>
+      <option value="binary">Binary</option>
+    </select>
+  </div>
+  <div class="form-tips">Energy is queried when the device reports support. Select the format that gives correct readings for your model.</div>
+
+  <div class="form-row">
+    <label for="node-config-input-capabilityOverrides">Capability overrides</label>
+    <textarea id="node-config-input-capabilityOverrides" rows="4" style="width:70%;" placeholder='{"display_control":true}'></textarea>
+  </div>
+  <div class="form-tips">Optional JSON using the flag names from <code>capabilities.additional_capabilities</code>. Set a flag to true or false to override reported support; omitted flags keep their detected values. Leave empty for automatic discovery.</div>
 
   <div id="midea-scan-status"></div>
   <div id="midea-scan-results-container"></div>
@@ -355,6 +382,12 @@
   <p>Your Midea account credentials are used only during authorization and are <strong>never stored</strong>. Only the resulting token and key are saved.</p>
   <h3>Manual Setup</h3>
   <p>If you already have a token and key (e.g., from another integration), enter the device IP, token, and key directly.</p>
+  <h3>Capability overrides</h3>
+  <p>Use this optional JSON object to correct incomplete capability reports. For example, <code>{"display_control":true}</code> allows LED commands when the device does not advertise display support. All 20 lowercase names from <code>capabilities.additional_capabilities</code> are accepted; each value must be true or false. Omitted flags retain their detected values. Unknown names are rejected.</p>
+  <p>Overrides are applied after capability discovery on every connection, before the initial state refresh. The state output shows the effective flags after overrides. This changes what the library treats as supported; it cannot add a feature to the device. Energy polling can be forced independently using its checkbox.</p>
+  <h3>Energy monitoring</h3>
+  <p>Energy polling follows the device’s reported capabilities. Unavailable readings remain null.</p>
+  <p><strong>Energy format</strong> selects BCD (the library default) or Binary decoding for total energy consumption, current-run energy consumption and real-time power. Both input and output nodes use this setting. No format detection is performed; unavailable readings remain null.</p>
   <h3>Connection</h3>
   <p>Connects to the device via TCP on port 6444 using Midea's proprietary LAN protocol. The connection is automatically re-established if lost, using exponential backoff (1s, 2s, 4s, ... up to 60s max).</p>
 </script>

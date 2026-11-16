@@ -9,6 +9,7 @@ import {
   FAN_SPEED,
   OPERATIONAL_MODE,
   SWING_MODE,
+  SWING_ANGLE, CASCADE_MODE, RATE_SELECT, AUX_HEAT_MODE,
 } from "midea-local";
 
 // ── Forward maps (string → number) ──────────────────────────────────────────
@@ -19,6 +20,7 @@ export const OPERATIONAL_MODE_MAP: Record<string, number> = {
   dry: OPERATIONAL_MODE.DRY,
   heat: OPERATIONAL_MODE.HEAT,
   fan_only: OPERATIONAL_MODE.FAN_ONLY,
+  smart_dry: OPERATIONAL_MODE.SMART_DRY,
 };
 
 export const FAN_SPEED_MAP: Record<string, number> = {
@@ -63,5 +65,10 @@ export function resolveEnum(
   map: Record<string, number>,
 ): number | undefined {
   if (typeof value === "number") return value;
-  return map[value.toLowerCase()];
+  return typeof value === "string" ? map[value.toLowerCase()] : undefined;
 }
+
+export const SWING_ANGLE_MAP: Record<string, number> = Object.fromEntries(Object.entries(SWING_ANGLE).map(([k, v]) => [k.toLowerCase(), v]));
+export const CASCADE_MODE_MAP: Record<string, number> = Object.fromEntries(Object.entries(CASCADE_MODE).map(([k, v]) => [k.toLowerCase(), v]));
+export const RATE_SELECT_MAP: Record<string, number> = Object.fromEntries(Object.entries(RATE_SELECT).map(([k, v]) => [k.toLowerCase(), v]));
+export const AUX_MODE_MAP: Record<string, number> = Object.fromEntries(Object.entries(AUX_HEAT_MODE).map(([k, v]) => [k.toLowerCase(), v]));

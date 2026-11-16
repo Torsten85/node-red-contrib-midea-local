@@ -32,6 +32,8 @@ export interface NodeStatus {
 // ── Config node interface ───────────────────────────────────────────────────
 
 export interface MideaDeviceConfig {
+  capabilityOverrides?: string;
+  energyDataFormat?: "bcd" | "binary";
   name: string;
   ip: string;
   credentials: {
@@ -42,6 +44,7 @@ export interface MideaDeviceConfig {
 
 /** Runtime config node — exposed to child nodes. */
 export interface MideaDeviceNode extends NodeRedNode {
+  energyDataFormat: "bcd" | "binary";
   device: AirConditioner | null;
   connected: boolean;
   events: EventEmitter;
@@ -52,6 +55,7 @@ export interface MideaDeviceNode extends NodeRedNode {
 // ── midea-in config ─────────────────────────────────────────────────────────
 
 export interface MideaInConfig {
+  includeCapabilities?: boolean;
   name: string;
   device: string; // config node ID
   mode: "interval" | "trigger";
@@ -62,6 +66,7 @@ export interface MideaInConfig {
 // ── midea-out config ────────────────────────────────────────────────────────
 
 export interface MideaOutConfig {
+  includeCapabilities?: boolean;
   name: string;
   device: string; // config node ID
   passthrough: boolean;
@@ -81,6 +86,8 @@ export interface MideaStatePayload {
   outdoorTemperature: number | null;
   operationalMode: string;
   fanSpeed: string;
+  /** Numeric fan setting; null in Auto or when unknown. Not measured RPM. */
+  fanSpeedValue: number | null;
   swingMode: string;
 
   turboMode: boolean | null;
@@ -94,16 +101,56 @@ export interface MideaStatePayload {
   currentEnergyConsumption: number | null;
   realTimePower: number | null;
 
+  freezeProtection: boolean | null;
+  followMe: boolean | null;
+  purifier: boolean | null;
+  ieco: boolean | null;
+  flashCool: boolean | null;
+  outSilent: boolean | null;
+  breezeAway: boolean | null;
+  breezeMild: boolean | null;
+  breezeless: boolean | null;
+  fahrenheit: boolean | null;
+  beep: boolean | null;
+  selfCleanActive: boolean | null;
+  defrostActive: boolean | null;
+  horizontalSwingAngle: number;
+  verticalSwingAngle: number;
+  cascadeMode: number;
+  rateSelect: number;
+  auxMode: number;
+  targetHumidity: number | null;
+  errorCode: number | null;
+  outdoorFanSpeed: number | null;
+  capabilities: Record<string, unknown> & { additional_capabilities: Record<string, boolean> };
+
   _raw: {
     operationalMode: number;
     fanSpeed: number;
     swingMode: number;
+    additional_capabilities: number;
   };
 }
 
 // ── Command payload (input to midea-out) ────────────────────────────────────
 
 export interface MideaCommandPayload {
+  freezeProtection?: boolean;
+  followMe?: boolean;
+  purifier?: boolean;
+  ieco?: boolean;
+  flashCool?: boolean;
+  outSilent?: boolean;
+  breezeAway?: boolean;
+  breezeMild?: boolean;
+  breezeless?: boolean;
+  startSelfClean?: boolean;
+  horizontalSwingAngle?: string | number;
+  verticalSwingAngle?: string | number;
+  cascadeMode?: string | number;
+  rateSelect?: string | number;
+  auxMode?: string | number;
+  targetHumidity?: number;
   powerState?: boolean;
   targetTemperature?: number;
   operationalMode?: string | number;

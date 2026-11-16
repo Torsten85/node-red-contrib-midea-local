@@ -6,18 +6,17 @@
       name: { value: '' },
       device: { value: '', type: 'midea-device', required: true },
       passthrough: { value: false },
+      includeCapabilities: { value: true },
       topic: { value: '' }
     },
     inputs: 1,
-    outputs: 1,
+    outputs: 2,
     icon: 'font-awesome/fa-snowflake-o',
     paletteLabel: 'midea out',
     label: function() {
       return this.name || 'midea out';
     },
-    outputLabels: function() {
-      return this.passthrough ? 'device state' : '';
-    }
+    outputLabels: ['device state', 'capabilities']
   });
 </script>
 
@@ -40,6 +39,12 @@
   </div>
 
   <div class="form-row">
+    <label style="width:auto;" for="node-input-includeCapabilities">
+      <input type="checkbox" id="node-input-includeCapabilities" style="width:auto; margin-right:8px;">
+      Include capabilities in state output
+    </label>
+  </div>
+  <div class="form-row">
     <label for="node-input-topic"><i class="fa fa-tasks"></i> Topic</label>
     <input type="text" id="node-input-topic" placeholder="Optional msg.topic">
   </div>
@@ -57,17 +62,37 @@
     <tr><th>Property</th><th>Type</th><th>Values</th></tr>
     <tr><td><code>powerState</code></td><td>boolean</td><td><code>true</code> / <code>false</code></td></tr>
     <tr><td><code>targetTemperature</code></td><td>number</td><td>16.0 – 30.0 (supports 0.5 steps)</td></tr>
-    <tr><td><code>operationalMode</code></td><td>string|number</td><td><code>"auto"</code>, <code>"cool"</code>, <code>"dry"</code>, <code>"heat"</code>, <code>"fan_only"</code><br>or numeric: 1, 2, 3, 4, 5</td></tr>
+    <tr><td><code>operationalMode</code></td><td>string|number</td><td><code>"auto"</code>, <code>"cool"</code>, <code>"dry"</code>, <code>"heat"</code>, <code>"fan_only"</code>, <code>"smart_dry"</code><br>or numeric: 1, 2, 3, 4, 5, 6</td></tr>
     <tr><td><code>fanSpeed</code></td><td>string|number</td><td><code>"auto"</code>, <code>"max"</code>, <code>"high"</code>, <code>"medium"</code>, <code>"low"</code>, <code>"silent"</code><br>or numeric: 102, 100, 80, 60, 40, 20</td></tr>
     <tr><td><code>swingMode</code></td><td>string|number</td><td><code>"off"</code>, <code>"vertical"</code>, <code>"horizontal"</code>, <code>"both"</code><br>or numeric: 0x0, 0xC, 0x3, 0xF</td></tr>
     <tr><td><code>turboMode</code></td><td>boolean</td><td>Enable turbo mode</td></tr>
     <tr><td><code>ecoMode</code></td><td>boolean</td><td>Enable eco mode</td></tr>
     <tr><td><code>sleepMode</code></td><td>boolean</td><td>Enable sleep mode</td></tr>
     <tr><td><code>fahrenheit</code></td><td>boolean</td><td>Display in Fahrenheit</td></tr>
-    <tr><td><code>displayOn</code></td><td>boolean</td><td>Toggle LED display</td></tr>
+    <tr><td><code>displayOn</code></td><td>boolean</td><td>Set LED display on/off</td></tr>
     <tr><td><code>beep</code></td><td>boolean</td><td>Beep on command</td></tr>
+    <tr><td><code>freezeProtection</code></td><td>boolean</td><td>Freeze protection</td></tr>
+    <tr><td><code>followMe</code></td><td>boolean</td><td>Follow Me mode</td></tr>
+    <tr><td><code>purifier</code></td><td>boolean</td><td>Purifier / ionizer</td></tr>
+    <tr><td><code>ieco</code></td><td>boolean</td><td>iECO mode</td></tr>
+    <tr><td><code>flashCool</code></td><td>boolean</td><td>Flash / Jet Cool</td></tr>
+    <tr><td><code>outSilent</code></td><td>boolean</td><td>Outdoor silent mode</td></tr>
+    <tr><td><code>breezeAway</code></td><td>boolean</td><td>Breeze away</td></tr>
+    <tr><td><code>breezeMild</code></td><td>boolean</td><td>Mild airflow</td></tr>
+    <tr><td><code>breezeless</code></td><td>boolean</td><td>Breezeless airflow</td></tr>
+    <tr><td><code>targetHumidity</code></td><td>number</td><td>Target humidity, integer 0–100%</td></tr>
+    <tr><td><code>horizontalSwingAngle</code></td><td>string | number</td><td>off (0), pos_1 (1), pos_2 (25), pos_3 (50), pos_4 (75), pos_5 (100)</td></tr>
+    <tr><td><code>verticalSwingAngle</code></td><td>string | number</td><td>Same values as horizontalSwingAngle</td></tr>
+    <tr><td><code>cascadeMode</code></td><td>string | number</td><td>off (0), up (1), down (2)</td></tr>
+    <tr><td><code>rateSelect</code></td><td>string | number</td><td>off (100), gear_50 (50), gear_75 (75), level_1 (1), level_2 (20), level_3 (40), level_4 (60), level_5 (80)</td></tr>
+    <tr><td><code>auxMode</code></td><td>string | number</td><td>off (0), aux_heat (1), aux_only (2)</td></tr>
+    <tr><td><code>startSelfClean</code></td><td>boolean</td><td>true starts self cleaning; false does nothing</td></tr>
   </table>
-  <h3>Output</h3>
+  <p>Features depend on your model. Use only one of <code>breezeAway</code>, <code>breezeMild</code>, or <code>breezeless</code> per message. Custom numeric fan speeds 1–100 are supported on capable devices.</p>
+  <p><code>displayOn</code> refreshes the LED state and toggles only if needed. Unknown state or unsupported control produces an error. Reads and commands sharing a device configuration are serialized.</p>
+  <h3>Outputs</h3>
+  <p>Output 1 carries device state. Output 2 carries <code>{ip, id, capabilities, _raw: {additional_capabilities}}</code> after connection/reconnection and whenever capabilities change on a subsequent read or command. No extra device queries are made. The configured topic applies to both outputs. Output 2 works independently of pass-through.</p>
+  <p>Disable <strong>Include capabilities in state output</strong> to omit <code>capabilities</code> and <code>_raw.additional_capabilities</code> from output 1. Existing flows retain them by default.</p>
   <p>When <strong>Pass-through</strong> is enabled, the node outputs the updated device state (same format as <code>midea in</code>) after applying the command.</p>
   <h3>Examples</h3>
   <p>Turn on and set to cool at 22°C:</p>
