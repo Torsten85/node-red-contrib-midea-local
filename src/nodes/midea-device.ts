@@ -9,6 +9,7 @@
 
 import { EventEmitter } from "node:events";
 import { Discover, AirConditioner } from "midea-local";
+import { applyCapabilityOverrides } from "./shared/capability-overrides.ts";
 
 /** Auto-reconnect timing constants. */
 const INITIAL_RECONNECT_DELAY = 1_000;
@@ -127,6 +128,7 @@ module.exports = function (RED: any): void {
     // Config
     node.deviceIp = config.ip;
     node.deviceName = config.name;
+    node.energyDataFormat = config.energyDataFormat === "binary" ? "binary" : "bcd";
 
     // Credentials (token and key are stored encrypted by Node-RED)
     const token: string | undefined = node.credentials?.token;
@@ -184,6 +186,11 @@ module.exports = function (RED: any): void {
         if (token && key) {
           await device.authenticate(token, key);
         }
+
+        // Discover advanced properties before the initial refresh.
+        await device.getCapabilities();
+        applyCapabilityOverrides(device, config.capabilityOverrides);
+        device.enableGroup5DataRequests = true;
 
         // Initial state refresh
         await device.refresh();

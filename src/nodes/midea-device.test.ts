@@ -22,6 +22,7 @@
 
 import { describe, it, expect, mock, beforeAll, beforeEach } from "bun:test";
 import { EventEmitter } from "node:events";
+import { applyCapabilityOverrides } from "./shared/capability-overrides.ts";
 
 /**
  * Mutable behavior for the midea-local mock. Tests mutate these
@@ -48,11 +49,16 @@ class AirConditionerMock {
   key: string | undefined;
   type = 0xac;
   version = 3;
+  enableEnergyUsageRequests = false;
   authenticate: (token?: string, key?: string) => Promise<void> = async () => {};
   refresh: () => Promise<void> = async () => {};
+  getCapabilities: () => Promise<void> = async () => {};
 }
 
+const library = require("midea-local");
+const RealAirConditioner = library.AirConditioner;
 mock.module("midea-local", () => ({
+  ...library,
   Discover: {
     discover: (...args: any[]) => behavior.discover(...(args as [])),
     discoverSingle: (...args: any[]) => behavior.discoverSingle(...(args as [])),
@@ -102,7 +108,7 @@ function createFakeRED() {
 }
 
 /** Instantiate the config node as Node-RED would on deploy. */
-function createNode(credentials?: { token?: string; key?: string }): any {
+function createNode(credentials?: { token?: string; key?: string }, config: Record<string, unknown> = {}): any {
   const { RED, registered } = createFakeRED();
   registerMideaDevice(RED);
 
@@ -110,7 +116,7 @@ function createNode(credentials?: { token?: string; key?: string }): any {
   if (!entry) throw new Error("midea-device type was not registered");
 
   const node: any = { credentials: credentials ?? {} };
-  entry.factory.call(node, { ip: "192.168.50.22", name: "Test AC" });
+  entry.factory.call(node, { ip: "192.168.50.22", name: "Test AC", ...config });
   return node;
 }
 
@@ -432,5 +438,113 @@ describe("midea-device (issue #2: discovery with defined IP address)", () => {
 
     expect(res.statusCode).toBe(500);
     expect(res.body.error).toContain("Socket error");
+  });
+});
+
+describe("capability initialization", () => {
+  it("queries capabilities before refreshing state", async () => {
+    const calls: string[] = [];
+    const device = new AirConditionerMock();
+    device.getCapabilities = async () => { calls.push("capabilities"); };
+    device.refresh = async () => { calls.push("refresh"); };
+    behavior.discoverSingle = async () => device;
+    const node = createNode();
+    await settle(10);
+    expect(calls).toEqual(["capabilities", "refresh"]);
+    expect(node.connected).toBe(true);
+    expect(node.device.enableGroup5DataRequests).toBe(true);
+    node.emit("close", () => {});
+  });
+});
+
+describe("energy polling configuration", () => {
+  for (const advertised of [false, true]) for (const forced of [false, true]) {
+    it(`follows advertised energy support, ignoring legacy force setting: advertised=${advertised}, forced=${forced}`, async () => {
+      const device = new AirConditionerMock();
+      let polled: boolean | undefined;
+      device.getCapabilities = async () => { device.enableEnergyUsageRequests = advertised; };
+      device.refresh = async () => { polled = device.enableEnergyUsageRequests; };
+      behavior.discoverSingle = async () => device;
+      const node = createNode(undefined, { forceEnergyPolling: forced, energyDataFormat: "binary" });
+      await settle(10);
+      expect(node.connected).toBe(true);
+      expect(polled).toBe(advertised);
+      expect(node.energyDataFormat).toBe("binary");
+      node.emit("close", () => {});
+    });
+  }
+  it("preserves defaults for existing flows", async () => {
+    const device = new AirConditionerMock();
+    behavior.discoverSingle = async () => device;
+    const node = createNode();
+    await settle(10);
+    expect(node.energyDataFormat).toBe("bcd");
+    expect(device.enableEnergyUsageRequests).toBe(false);
+    node.emit("close", () => {});
+  });
+});
+
+describe("capability overrides", () => {
+  function realDevice() {
+    const device = new RealAirConditioner({ ip: "192.0.2.1", port: 6444, deviceId: 1 });
+    device.overrideCapabilities({ additional_capabilities: 793623 });
+    return device;
+  }
+
+  it("enables LED support using the library API without losing other flags", () => {
+    const device = realDevice();
+    expect(device.supportsDisplayControl).toBe(false);
+    applyCapabilityOverrides(device, '{"display_control":true}');
+    expect(device.supportsDisplayControl).toBe(true);
+    expect(device.supportsEco).toBe(true);
+    expect(device.supportsSelfClean).toBe(true);
+    expect(device.capabilitiesDict().additional_capabilities).toBe(793655);
+  });
+
+  it("can clear individual flags and preserves unspecified and unknown bits", () => {
+    const device = realDevice();
+    const unknownBit = 1 << 25;
+    device.overrideCapabilities({ additional_capabilities: 793623 | unknownBit });
+    applyCapabilityOverrides(device, '{"eco":false,"display_control":true}');
+    expect(device.supportsEco).toBe(false);
+    expect(device.supportsDisplayControl).toBe(true);
+    expect(device.supportsSelfClean).toBe(true);
+    expect(device.capabilitiesDict().additional_capabilities).toBe((793623 | unknownBit | 32) & ~2);
+  });
+
+  for (const input of [undefined, "", "  ", "{}"]) {
+    it(`leaves detected capabilities alone for ${JSON.stringify(input)}`, () => {
+      const device = realDevice();
+      applyCapabilityOverrides(device, input);
+      expect(device.capabilitiesDict().additional_capabilities).toBe(793623);
+    });
+  }
+
+  for (const input of ['{', 'null', '[]', 'true', '{"display_control":true,"typo":true}', '{"display_control":true,"eco":1}', '{"__proto__":true}']) {
+    it(`rejects invalid overrides without partial updates: ${input}`, () => {
+      const device = realDevice();
+      expect(() => applyCapabilityOverrides(device, input)).toThrow();
+      expect(device.capabilitiesDict().additional_capabilities).toBe(793623);
+    });
+  }
+
+  it("applies configuration after discovery and before refresh on each connection", async () => {
+    for (let connection = 0; connection < 2; connection++) {
+      const calls: string[] = [];
+      const device = new AirConditionerMock();
+      let mask = 0;
+      device.getCapabilities = async () => { mask = 793623; calls.push("discovery"); };
+      Object.assign(device, {
+        capabilitiesDict: () => ({ additional_capabilities: mask }),
+        overrideCapabilities: (overrides: any) => { mask = overrides.additional_capabilities; calls.push("override"); },
+      });
+      device.refresh = async () => { calls.push("refresh"); expect(mask).toBe(793655); };
+      behavior.discoverSingle = async () => device;
+      const node = createNode(undefined, { capabilityOverrides: '{"display_control":true}' });
+      await settle(10);
+      expect(node.connected).toBe(true);
+      expect(calls).toEqual(["discovery", "override", "refresh"]);
+      node.emit("close", () => {});
+    }
   });
 });
